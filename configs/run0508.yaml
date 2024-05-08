@@ -1,0 +1,4 @@
+work_dir: wdir_0508
+bin_dir: /mnt/workspace/analyses/omics/AFA/barcode04_AFA_D3/03-Polishing/Final-bins
+references:
+  bin.7: ressources/CP051528.faa

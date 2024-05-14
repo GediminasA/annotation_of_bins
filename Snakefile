@@ -11,8 +11,11 @@ rule target:
         #wdir +"/merged_proteins.fasta"
         #wdir + "/proteins_splits"
         wdir + "/go_annots.tsv",
-        wdir + "/de_annots.tsv",
-        wdir + "/metagenome.fasta",
+        #wdir + "/de_annots.tsv",
+        # wdir + "/metagenome.fasta",
+        # wdir + "/pgarokkaadd_annotations/viral.faa",
+        # wdir + "/metagenome.gff",
+        # wdir + "/metagenome.fasta"
 
         # expand(
         #     wdir + "/prokka_annotations/{bin}/{bin}__sorted.gff",
@@ -49,6 +52,26 @@ rule prokka:
         prokka {params.add} --cpu  {threads} --prefix {wildcards.bin} --locustag {wildcards.bin} --addgenes  --force --outdir {output.od} {input}
         """
 
+rule parokka_addtitional:
+    input:
+        fasta = config["additional_fasta"]
+    output:
+        od = directory(wdir + "/pharokka_annotations"),
+        prots = wdir + "/pharokka_annotations/viral.faa",
+        gff = wdir + "/pharokka_annotations/viral.gff"
+    conda:
+        "pharokka"
+    threads: 96
+    params:
+        add = config["additional_fasta"],
+        name = "viral",
+        faa =  wdir + "/pharokka_annotations/phanotate.faa"
+    shell:
+        """
+        pharokka.py --threads  {threads} --prefix {params.name} --locustag {params.name} -g phanotate  --force --outdir {output.od} -i {input} -d $DB
+        mv {params.faa} {output.prots}
+        """
+
 
 rule sortgff:
     input:
@@ -78,7 +101,8 @@ rule mergesortedgff:
             wdir + "/prokka_annotations/{bin}/{bin}__sorted.gff",
             #wdir + "/prokka_annotations/{bin}",
             bin = bins
-        )
+        ),
+         wdir + "/pharokka_annotations/viral__sorted.gff"
     output:
          wdir + "/metagenome.gff"
     conda:
@@ -104,13 +128,15 @@ rule get_contig_matchinggff:
         fastas = expand(
             config["bin_dir"]+"/{bin}.fasta",
             bin = bins
-        )
+        ),
+        add = config["additional_fasta"]
     output:
          inter = temp(wdir + "/metagenome_pre.fasta"),
          final = wdir + "/metagenome.fasta"
     shell:
         """
-        cat {input.fastas} | seqkit seq -w 0 -i | seqkit grep -w 0 -n -f {input.cids} > {output.inter}
+        cat {input.fastas} {input.add} | seqkit seq -w 0 -i | seqkit grep -w 0 -n -f {input.cids} > {output.inter}
+        samtools faidx {output.inter} 
         seqkit faidx  {output.inter} -l {input.cids} -w 0 -o {output.final}
         """
 
@@ -119,7 +145,8 @@ rule merge_fastas:
         expand(
             wdir + "/prokka_annotations/{bin}/{bin}.faa",
             bin = bins
-        )
+        ),
+        wdir + "/pharokka_annotations/viral.faa"
     output:
         wdir +"/merged_proteins.fasta"
     shell:
@@ -134,7 +161,7 @@ checkpoint split:
         directory(wdir + "/proteins_splits")
     shell:
         """
-        seqkit split {input} -p 1000 --by-part-prefix split_  -O {output} 
+        seqkit split {input} -p 100 --by-part-prefix split_  -O {output} 
         """
         
 rule annotate:
